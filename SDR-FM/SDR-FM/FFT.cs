@@ -18,8 +18,8 @@ namespace SDR_FM
             sinTable = new double[size];
             for (int i = 0; i < size; i++)
             {
-                cosTable[i] = (double)Math.Cos(2 * Math.PI * i / size);
-                sinTable[i] = (double)Math.Sin(2 * Math.PI * i / size);
+                cosTable[i] = Math.Cos(2 * Math.PI * i / size);
+                sinTable[i] = Math.Sin(2 * Math.PI * i / size);
             }
         }
 

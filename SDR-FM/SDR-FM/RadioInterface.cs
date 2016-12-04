@@ -1,14 +1,21 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
+using Windows.Networking;
+using Windows.Networking.Sockets;
+using Windows.System.Threading;
 
 namespace SDR_FM
 {
     class RadioInterface
     {
-        public enum RadioCommands
+        //RTL_TCP command constants
+        private enum RadioCommands
         {
             SET_FREQ = 0x1,
             SET_SAMPLE_RATE = 0x2,
@@ -18,39 +25,179 @@ namespace SDR_FM
             SET_AGC_MODE = 0x8,
             SET_TUNER_GAIN_INDEX = 0xd
         }
+
+        private Task samplesWorker;
+
+        //storage of samples
+        ConcurrentQueue<Complex[]> sampleBuffers;
+
+        //RTL_TCP settings
+        private const int DongleInfoLength = 12;
+        private const uint DefaultFrequency = 99100000;
+        private const uint DefaultSampleRate = 1920000;
+        private const uint DefaultGain = 10;
+
+        private uint currentFrequency = DefaultFrequency;
+        private uint currentGain = DefaultGain;
+
+        //class variables
+        private const int STREAM_BUFFER_LENGTH = 1024000;
+        private StreamSocket socket;
+        private StreamReader streamReader;
+        private StreamWriter streamWriter;
+        private bool isConnected = false;
+        private bool isStreaming = false;
+        private string rtlName;
+
         public RadioInterface()
         {
-
+            sampleBuffers = new ConcurrentQueue<Complex[]>();
         }
 
         public void Connect(String IPAddress, string port)
         {
+            if(!isConnected)
+            {
+                socket = new StreamSocket();
+                Task t = socket.ConnectAsync(new HostName(IPAddress), port).AsTask();
+                t.Wait();
 
+                streamReader = new StreamReader(socket.InputStream.AsStreamForRead());
+                streamWriter = new StreamWriter(socket.OutputStream.AsStreamForWrite());
+
+                char[] rtlType = new char[12];
+                streamReader.Read(rtlType, 0, 12);
+                rtlName = new string(rtlType);
+
+                SetSampleRate(DefaultSampleRate);
+                SetFrequency(DefaultFrequency - (DefaultSampleRate / 2));
+                SetGain(DefaultGain);
+            }
+            isConnected = !isConnected;
         }
 
-        public void Initialize()
+        public bool IsConnected
         {
-
+            get { return isConnected; }
         }
 
-        public void SetFrequency(double frequency)
+        public bool IsStreaming
         {
-
+            get { return isStreaming; }
         }
 
-        public void SetSampleRate(double rate)
+        public uint Frequency
         {
-
+            get { return currentFrequency; }
         }
 
-        public void SetGain(int gain)
+        public uint Gain
         {
+            get { return currentGain; }
+        }
 
+        public uint SampleRate
+        {
+            get { return DefaultSampleRate; }
+        }
+
+        public string GetRTLName()
+        {
+            if(String.IsNullOrEmpty(rtlName))
+            {
+                return "Not Connected";
+            }
+            else
+            {
+                return rtlName;
+            }
+        }
+
+        private byte[] SendCommand(RadioCommands cmd, byte[] value)
+        {
+            byte[] networkBytes = new byte[5];
+            networkBytes[0] = (byte)cmd;
+            networkBytes[1] = value[3];
+            networkBytes[2] = value[2];
+            networkBytes[3] = value[1];
+            networkBytes[4] = value[0];
+            return networkBytes;
+        }
+
+        private byte[] SendCommand(RadioCommands cmd, UInt32 value)
+        {
+            byte[] uintBytes = BitConverter.GetBytes(value);
+            return SendCommand(cmd, uintBytes);
+        }
+
+        public void SetFrequency(uint frequency)
+        {
+            currentFrequency = frequency;
+            streamWriter.BaseStream.Write(SendCommand(RadioCommands.SET_FREQ, frequency), 0, 5);
+            streamWriter.Flush();
+        }
+
+        public void SetSampleRate(uint rate)
+        {
+            streamWriter.BaseStream.Write(SendCommand(RadioCommands.SET_SAMPLE_RATE, rate), 0, 5);
+            streamWriter.Flush();
+        }
+
+        public void SetGain(uint gain)
+        {
+            streamWriter.BaseStream.Write(SendCommand(RadioCommands.SET_TUNER_GAIN_INDEX, gain), 0, 5);
+            streamWriter.Flush();
         }
 
         public void StartSampleStream()
         {
-
+            samplesWorker = Task.Run(()=> Radio_DoWork());        
         }
+
+        public void StopAndDisconnect()
+        {            
+            isStreaming = false;
+            isConnected = false;
+        }
+
+        public bool SamplesAvailable
+        {
+            get { return !sampleBuffers.IsEmpty; }
+        }
+
+        public Complex[] GetSamples()
+        {
+            Complex[] temp = null;
+            sampleBuffers.TryDequeue(out temp);
+            return temp;
+        }
+
+        private void Radio_DoWork()
+        {
+            do
+            {
+                int samplesRead = 0;
+                byte[] samples = new byte[(DefaultSampleRate / 60) * 2];
+                //TODO: this buffer size needs to be DefaultSampleRate / 100 * 2
+                while (samplesRead != samples.Length)
+                {
+                    samplesRead += streamReader.BaseStream.Read(samples, samplesRead, samples.Length - samplesRead);
+                }
+                Complex[] temp = new Complex[samples.Length / 2];
+                for (int i = 0; i < temp.Length; i++)
+                {
+                    int index = i * 2;
+                    temp[i] = new Complex(samples[index], samples[index + 1]);
+                }
+                sampleBuffers.Enqueue(temp);
+                isStreaming = true;
+            }
+            while (isConnected);
+
+            streamWriter.Dispose();
+            streamReader.Dispose();
+            socket.Dispose();
+        }
+
     }
 }
