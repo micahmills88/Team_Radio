@@ -9,9 +9,10 @@
     mc:Ignorable="d">
 
     <Grid Background="White" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <canvas:CanvasAnimatedControl Draw="CanvasAnimatedControl_Draw" BorderThickness="2" ClearColor="DarkGray" Height="300" Width="1200" Margin="40,30,40,480" PointerWheelChanged="CanvasAnimatedControl_PointerWheelChanged"/>
+        <canvas:CanvasAnimatedControl Draw="CanvasAnimatedControl_Draw" BorderThickness="2" ClearColor="DarkGray" Width="1200" Margin="40,30,40,361" PointerWheelChanged="CanvasAnimatedControl_PointerWheelChanged"/>
         <Button x:Name="startButton" Content="Connect" HorizontalAlignment="Left" Margin="40,659,0,0" VerticalAlignment="Top" Click="startButton_Click"/>
-        <TextBox x:Name="tcpDestinationBox" HorizontalAlignment="Left" Margin="40,610,0,0" TextWrapping="Wrap" Text="micahmills.homeip.net:1234" VerticalAlignment="Top" Width="230"/>
+        <TextBox x:Name="tcpDestinationBox" HorizontalAlignment="Left" Margin="40,610,0,0" TextWrapping="Wrap" Text="micahmills.homeip.net:1234" VerticalAlignment="Top" Width="270"/>
+        <!-- ComboBox x:Name="comboBox" HorizontalAlignment="Left" Margin="970,610,0,0" VerticalAlignment="Top" Width="270"/ -->
     </Grid>
 </Page>
 

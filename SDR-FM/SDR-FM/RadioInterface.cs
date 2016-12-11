@@ -29,13 +29,14 @@ namespace SDR_FM
         private Task samplesWorker;
 
         //storage of samples
-        ConcurrentQueue<Complex[]> sampleBuffers;
+        private ConcurrentQueue<Complex[]> sampleBuffers;
+        private FFTHandler fftHandler;
 
         //RTL_TCP settings
         private const int DongleInfoLength = 12;
         private const uint DefaultFrequency = 99100000;
         private const uint DefaultSampleRate = 1920000;
-        private const uint DefaultGain = 10;
+        private const uint DefaultGain = 11;
 
         private uint currentFrequency = DefaultFrequency;
         private uint currentGain = DefaultGain;
@@ -49,9 +50,10 @@ namespace SDR_FM
         private bool isStreaming = false;
         private string rtlName;
 
-        public RadioInterface()
+        public RadioInterface(FFTHandler handler)
         {
             sampleBuffers = new ConcurrentQueue<Complex[]>();
+            fftHandler = handler;
         }
 
         public void Connect(String IPAddress, string port)
@@ -70,7 +72,7 @@ namespace SDR_FM
                 rtlName = new string(rtlType);
 
                 SetSampleRate(DefaultSampleRate);
-                SetFrequency(DefaultFrequency - (DefaultSampleRate / 2));
+                SetFrequency(DefaultFrequency);
                 SetGain(DefaultGain);
             }
             isConnected = !isConnected;
@@ -165,6 +167,11 @@ namespace SDR_FM
             get { return !sampleBuffers.IsEmpty; }
         }
 
+        public int GetBufferCount()
+        {
+            return sampleBuffers.Count;
+        }
+
         public Complex[] GetSamples()
         {
             Complex[] temp = null;
@@ -174,11 +181,13 @@ namespace SDR_FM
 
         private void Radio_DoWork()
         {
+            if (!isConnected)
+                return;
             do
             {
                 int samplesRead = 0;
-                byte[] samples = new byte[(DefaultSampleRate / 60) * 2];
-                //TODO: this buffer size needs to be DefaultSampleRate / 100 * 2
+                byte[] samples = new byte[(DefaultSampleRate / 100) * 2];
+                
                 while (samplesRead != samples.Length)
                 {
                     samplesRead += streamReader.BaseStream.Read(samples, samplesRead, samples.Length - samplesRead);
@@ -187,9 +196,10 @@ namespace SDR_FM
                 for (int i = 0; i < temp.Length; i++)
                 {
                     int index = i * 2;
-                    temp[i] = new Complex(samples[index], samples[index + 1]);
+                    temp[i] = new Complex((samples[index] / (Byte.MaxValue / 2.0) - 1.0), (samples[index + 1] / (Byte.MaxValue / 2.0) - 1.0)); //swapped iq
                 }
                 sampleBuffers.Enqueue(temp);
+                fftHandler.addRawSamples(temp);
                 isStreaming = true;
             }
             while (isConnected);
