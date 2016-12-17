@@ -24,19 +24,24 @@ namespace SDR_FM
 
         private RadioInterface radio;
         private ConcurrentQueue<double[]> outSamples;
+        private ConcurrentQueue<Complex[]> fftSamples;
 
         private Task signalWorker;
         private Complex prevSample;
 
-        private double[] filter;
-        private Complex[] filterHistory;
+        private double[] signalFilter;
+        private Complex[] signalFilterHistory;
+
+        private double[] decimationFilter;
+        private Complex[] decimationFilterHistory;
 
         private double[] audioFilter;
         private double[] audioFilterHistory;
         
 
-        public SignalProcessor(FFTHandler handler)
+        public SignalProcessor(RadioInterface radio)
         {
+            this.radio = radio;
             Initialize();
         }
 
@@ -49,13 +54,17 @@ namespace SDR_FM
         {
             prevSample = Complex.Zero;
 
-            audioFilter = CreateWindowedSincFilter(0.25, 7); //use0.25 or 0.125
-            filter = CreateWindowedSincFilter(0.15, 3); //use 0.1 or 0.5
+            signalFilter = CreateWindowedSincFilter(0.025, 13); //use 0.1 or 0.05
+            decimationFilter = CreateWindowedSincFilter(0.125, 15);
+            audioFilter = CreateWindowedSincFilter(0.1, 11); //use0.25 or 0.125
+            
 
-            filterHistory = new Complex[filter.Length];
+            signalFilterHistory = new Complex[signalFilter.Length];
             audioFilterHistory = new double[audioFilter.Length];
+            decimationFilterHistory = new Complex[decimationFilter.Length];
 
-            outSamples = new ConcurrentQueue<double[]>();            
+            outSamples = new ConcurrentQueue<double[]>();
+            fftSamples = new ConcurrentQueue<Complex[]>();
         }
 
         public void StartSignalProcessing()
@@ -82,19 +91,20 @@ namespace SDR_FM
                 if (inbound != null)
                 {
                     //apply filter
-                    Complex[] filtered = ApplyFilter(inbound, filter, filterHistory);
+                    Complex[] filtered = ApplyFilter(inbound, signalFilter, signalFilterHistory, 1);
 
-                    //downsample to 192k
-                    Complex[] decimated = Downsample(filtered);
+                    //apply decimating filter
+                    //Complex[] decimated = ApplyFilter(filtered, decimationFilter, decimationFilterHistory, 1);                    
+                    Complex[] decimated = Downsample(filtered, 10);
 
                     //demodulate
                     double[] demodulated = Quadrature_Demodulation3(decimated);
 
                     //filter audio
-                    double[] filteredAudio = ApplyFilter(demodulated, audioFilter, audioFilterHistory);
+                    double[] filteredAudio = ApplyAudioFilter(demodulated, audioFilter, audioFilterHistory, 1);
 
                     //downsample again
-                    double[] audio = DownsampleAudio(filteredAudio);
+                    double[] audio = DownsampleAudio(filteredAudio, 4);
 
                     //store in queue
                     outSamples.Enqueue(audio);
@@ -110,6 +120,13 @@ namespace SDR_FM
         {
             double[] temp = null;
             outSamples.TryDequeue(out temp);
+            return temp;
+        }
+
+        public Complex[] GetFFTSamples()
+        {
+            Complex[] temp = null;
+            fftSamples.TryDequeue(out temp);
             return temp;
         }
 
@@ -143,9 +160,9 @@ namespace SDR_FM
             return sincFilter;
         }
 
-        private double[] ApplyFilter(double[] signal, double[] filter, double[] history)
+        private double[] ApplyAudioFilter(double[] signal, double[] filter, double[] history, int decimation = 4)
         {
-            double[] filteredSignal = new double[signal.Length];
+            double[] filteredSignal = new double[signal.Length / decimation];
             double[] input = new double[signal.Length + history.Length];
 
             for (int i = 0; i < history.Length; i++)
@@ -159,18 +176,20 @@ namespace SDR_FM
                 input[i] = signal[i - history.Length];
             }
 
-            for (int i = filter.Length; i < input.Length; i++)
+            int index = 0;
+            for (int i = filter.Length; i < input.Length; i += decimation)
             {
-                filteredSignal[i - filter.Length] = 0;
                 for (int j = 0; j < filter.Length; j++)
                 {
-                    filteredSignal[i - filter.Length] += input[i - j] * filter[j];
+                    filteredSignal[index] += input[i - j] * filter[j];
                 }
+                index++;
             }
+
             return filteredSignal;
         }
 
-        private Complex[] ApplyFilter(Complex[] signal, double[] filter, Complex[] history)
+        private Complex[] ApplyFilter(Complex[] signal, double[] filter, Complex[] history, int decimation = 10)
         {
             Complex[] filteredSignal = new Complex[signal.Length];
             Complex[] input = new Complex[signal.Length + history.Length];
@@ -186,13 +205,23 @@ namespace SDR_FM
                 input[i] = signal[i - history.Length];
             }
 
-            for (int i = filter.Length; i < input.Length; i++)
+            //for (int i = filter.Length; i < input.Length; i++)
+            //{
+            //    filteredSignal[i - filter.Length] = 0;
+            //    for (int j = 0; j < filter.Length; j++)
+            //    {
+            //        filteredSignal[i - filter.Length] += input[i - j] * filter[j];
+            //    }
+            //}
+
+            int index = 0;
+            for (int i = filter.Length; i < input.Length; i += decimation)
             {
-                filteredSignal[i - filter.Length] = 0;
                 for (int j = 0; j < filter.Length; j++)
                 {
-                    filteredSignal[i - filter.Length] += input[i - j] * filter[j];
+                    filteredSignal[index] += input[i - j] * filter[j];
                 }
+                index++;
             }
             return filteredSignal;
         }

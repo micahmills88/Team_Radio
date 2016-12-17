@@ -34,15 +34,15 @@ namespace SDR_FM
         private AudioFrameInputNode frameInputNode;
 
         private SignalProcessor processor;
-        private FFTHandler fftHandler;
         private bool isStarted = false;
+        private float volume = 1.0f;
 
         public enum ChannelType
         {
             Mono, Stereo
         }
 
-        public AudioPlayer(SignalProcessor inProcessor, FFTHandler handler)
+        public AudioPlayer(SignalProcessor inProcessor)
         {
             processor = inProcessor;
             Initialize();
@@ -153,7 +153,7 @@ namespace SDR_FM
 
                 for (int i = 0; i < sampleCount; i++)
                 {
-                    dataInFloat[i] = (float)audioSamples[i];
+                    dataInFloat[i] = (float)audioSamples[i] * volume;
                 }
             }
 
@@ -188,9 +188,9 @@ namespace SDR_FM
             graph.Stop();
         }
 
-        public void SetVolume(int volume)
+        public void SetVolume(float volume)
         {
-
+            this.volume = volume;
         }
 
     }

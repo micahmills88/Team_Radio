@@ -8,11 +8,18 @@
     xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
     mc:Ignorable="d">
 
-    <Grid Background="White" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <canvas:CanvasAnimatedControl Draw="CanvasAnimatedControl_Draw" BorderThickness="2" ClearColor="DarkGray" Width="1200" Margin="40,30,40,361" PointerWheelChanged="CanvasAnimatedControl_PointerWheelChanged"/>
+    <Grid Background="DarkGray" HorizontalAlignment="Center" VerticalAlignment="Center" Width="1280"  Height="720">
+        <canvas:CanvasAnimatedControl Draw="CanvasAnimatedControl_Draw" BorderThickness="2" ClearColor="LightGray" 
+                                      Width="1200" Margin="40,30,40,390" PointerWheelChanged="CanvasAnimatedControl_PointerWheelChanged" PointerMoved="CanvasAnimatedControl_PointerMoved" PointerExited="CanvasAnimatedControl_PointerExited" PointerReleased="CanvasAnimatedControl_PointerReleased" />
         <Button x:Name="startButton" Content="Connect" HorizontalAlignment="Left" Margin="40,659,0,0" VerticalAlignment="Top" Click="startButton_Click"/>
-        <TextBox x:Name="tcpDestinationBox" HorizontalAlignment="Left" Margin="40,610,0,0" TextWrapping="Wrap" Text="micahmills.homeip.net:1234" VerticalAlignment="Top" Width="270"/>
-        <!-- ComboBox x:Name="comboBox" HorizontalAlignment="Left" Margin="970,610,0,0" VerticalAlignment="Top" Width="270"/ -->
+        <TextBox x:Name="tcpDestinationBox" Background="White" HorizontalAlignment="Left" Margin="40,610,0,0" TextWrapping="Wrap" Text="10.0.0.197:1234" 
+                 VerticalAlignment="Top" Width="270"/>
+        <TextBox x:Name="tunerBox" Background="White" LostFocus="tunerBox_LostFocus" HorizontalAlignment="Center" Width="150" Margin="565,378,565,0" TextWrapping="Wrap" Text="99.1 Mhz"  
+                 TextAlignment="Center"  VerticalAlignment="Top" KeyDown="tunerBox_KeyDown"/>
+        <Button x:Name="tuneUpButton" Content="-&gt;" HorizontalAlignment="Left" Margin="730,378,0,0" VerticalAlignment="Top" Click="tuneUpButton_Click"/>
+        <Button x:Name="tuneDownButton" Content="&lt;-"  HorizontalAlignment="Left" Margin="514,378,0,0" VerticalAlignment="Top" Click="tuneDownButton_Click"/>
+        <Slider x:Name="volumeSlider" HorizontalAlignment="Left" Margin="565,434,0,0" VerticalAlignment="Top" Width="150" ValueChanged="volumeSlider_ValueChanged" Value="5" Maximum="10" LargeChange="2"/>
+        <TextBlock x:Name="textBlock" HorizontalAlignment="Left" Margin="501,441,0,0" TextWrapping="Wrap" Text="Volume" VerticalAlignment="Top"/>
     </Grid>
 </Page>
 

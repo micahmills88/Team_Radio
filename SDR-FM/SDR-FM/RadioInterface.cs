@@ -30,13 +30,13 @@ namespace SDR_FM
 
         //storage of samples
         private ConcurrentQueue<Complex[]> sampleBuffers;
-        private FFTHandler fftHandler;
+        private ConcurrentQueue<Complex[]> fftBuffers;
 
         //RTL_TCP settings
         private const int DongleInfoLength = 12;
         private const uint DefaultFrequency = 99100000;
         private const uint DefaultSampleRate = 1920000;
-        private const uint DefaultGain = 11;
+        private const uint DefaultGain = 9;
 
         private uint currentFrequency = DefaultFrequency;
         private uint currentGain = DefaultGain;
@@ -48,18 +48,21 @@ namespace SDR_FM
         private StreamWriter streamWriter;
         private bool isConnected = false;
         private bool isStreaming = false;
+        private bool canWrite = true;
         private string rtlName;
 
-        public RadioInterface(FFTHandler handler)
+        public RadioInterface()
         {
-            sampleBuffers = new ConcurrentQueue<Complex[]>();
-            fftHandler = handler;
+
         }
 
         public void Connect(String IPAddress, string port)
         {
             if(!isConnected)
             {
+                sampleBuffers = new ConcurrentQueue<Complex[]>();
+                fftBuffers = new ConcurrentQueue<Complex[]>();
+
                 socket = new StreamSocket();
                 Task t = socket.ConnectAsync(new HostName(IPAddress), port).AsTask();
                 t.Wait();
@@ -167,6 +170,11 @@ namespace SDR_FM
             get { return !sampleBuffers.IsEmpty; }
         }
 
+        public int SamplesFFTAvailable
+        {
+            get { return fftBuffers.Count; }
+        }
+
         public int GetBufferCount()
         {
             return sampleBuffers.Count;
@@ -176,6 +184,13 @@ namespace SDR_FM
         {
             Complex[] temp = null;
             sampleBuffers.TryDequeue(out temp);
+            return temp;
+        }
+
+        public Complex[] GetFFTSamples()
+        {
+            Complex[] temp = null;
+            fftBuffers.TryDequeue(out temp);
             return temp;
         }
 
@@ -198,8 +213,13 @@ namespace SDR_FM
                     int index = i * 2;
                     temp[i] = new Complex((samples[index] / (Byte.MaxValue / 2.0) - 1.0), (samples[index + 1] / (Byte.MaxValue / 2.0) - 1.0)); //swapped iq
                 }
-                sampleBuffers.Enqueue(temp);
-                fftHandler.addRawSamples(temp);
+
+                if(canWrite)
+                {
+                    sampleBuffers.Enqueue(temp);
+                    fftBuffers.Enqueue(temp);
+                }
+
                 isStreaming = true;
             }
             while (isConnected);
